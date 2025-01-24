@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from PIL import Image
+import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -56,39 +57,82 @@ def cleanup_temp_file(filepath):
     except Exception as e:
         logger.error(f"Error cleaning up temp file {filepath}: {str(e)}")
 
-def run_exiftool(filepath):
-    """Run ExifTool command and return metadata."""
+def get_metadata(file_path):
+    """Get metadata from file using ExifTool."""
     try:
-        # Check if ExifTool exists
-        if not os.path.exists(EXIFTOOL_PATH):
-            raise FileNotFoundError(f"ExifTool not found at {EXIFTOOL_PATH}")
-
-        # Run ExifTool command
-        cmd = [EXIFTOOL_PATH, '-json', '-n', str(filepath)]
-        logger.debug(f"Running ExifTool command: {' '.join(cmd)}")
+        # ExifTool ile tüm olası tarih alanlarını al
+        result = subprocess.run(
+            [
+                EXIFTOOL_PATH,
+                '-json',
+                '-n',
+                '-DateTimeOriginal',
+                '-CreateDate',
+                '-FileCreateDate',
+                '-ModifyDate',
+                '-FileModifyDate',
+                '-MediaCreateDate',
+                '-MediaModifyDate',
+                '-TrackCreateDate',
+                '-TrackModifyDate',
+                file_path
+            ],
+            capture_output=True,
+            text=True,
+            check=True
+        )
         
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # JSON çıktısını parse et
+        metadata = json.loads(result.stdout)[0]
         
-        if result.stderr:
-            logger.warning(f"ExifTool warnings: {result.stderr}")
+        # Tüm metadata'yı al
+        full_result = subprocess.run(
+            [EXIFTOOL_PATH, '-json', '-n', file_path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        full_metadata = json.loads(full_result.stdout)[0]
         
-        # Parse JSON output
-        metadata = json.loads(result.stdout)
-        if not metadata:
-            logger.warning("ExifTool returned empty metadata")
-            return None
-            
-        return metadata[0]  # ExifTool returns a list with one item
+        # Olası tarih alanlarını kontrol et (öncelik sırasına göre)
+        date_fields = [
+            'DateTimeOriginal',  # Fotoğraf çekilme tarihi
+            'CreateDate',        # Dosya oluşturma tarihi
+            'MediaCreateDate',   # Medya oluşturma tarihi
+            'TrackCreateDate',   # Track oluşturma tarihi
+            'FileCreateDate'     # Sistem dosya tarihi
+        ]
+        
+        creation_date = None
+        for field in date_fields:
+            if field in metadata and metadata[field]:
+                creation_date = metadata[field]
+                break
+        
+        # Temel dosya bilgilerini hazırla
+        basic_info = {
+            'FileName': os.path.basename(file_path),
+            'FileSize': os.path.getsize(file_path),
+            'FileType': full_metadata.get('FileType', 'Unknown'),
+            'MIMEType': full_metadata.get('MIMEType', 'Unknown'),
+            'FileCreateDate': creation_date or datetime.datetime.now().strftime('%Y:%m:%d %H:%M:%S'),
+            'FileModifyDate': full_metadata.get('FileModifyDate') or datetime.datetime.now().strftime('%Y:%m:%d %H:%M:%S')
+        }
+        
+        # Metadata'yı kategorilere ayır
+        organized_metadata = organize_metadata(full_metadata)
+        organized_metadata['basic'] = basic_info
+        
+        return organized_metadata
         
     except subprocess.CalledProcessError as e:
-        logger.error(f"ExifTool execution failed: {str(e)}")
-        logger.error(f"ExifTool stderr: {e.stderr}")
-        raise RuntimeError(f"ExifTool execution failed: {e.stderr}")
+        logger.error(f"ExifTool error: {e.stderr}")
+        raise
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse ExifTool output: {str(e)}")
-        raise RuntimeError("Failed to parse metadata JSON")
+        logger.error(f"JSON parsing error: {str(e)}")
+        raise
     except Exception as e:
-        logger.error(f"Unexpected error running ExifTool: {str(e)}")
+        logger.error(f"Unexpected error in get_metadata: {str(e)}")
         raise
 
 def organize_metadata(metadata):
@@ -211,17 +255,11 @@ def upload_file():
 
         # Extract metadata
         try:
-            raw_metadata = run_exiftool(filepath)
-            if raw_metadata is None:
-                return jsonify({'error': 'No metadata found in file'}), 404
-
-            # Organize metadata into categories
-            organized_metadata = organize_metadata(raw_metadata)
+            metadata = get_metadata(filepath)
             
             return jsonify({
                 'success': True,
-                'metadata': organized_metadata,
-                'raw_metadata': raw_metadata
+                'metadata': metadata
             })
 
         except Exception as e:
