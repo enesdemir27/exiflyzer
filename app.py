@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import subprocess
 import os
@@ -8,6 +8,7 @@ import uuid
 import logging
 from pathlib import Path
 from werkzeug.utils import secure_filename
+from PIL import Image
 
 app = Flask(__name__)
 CORS(app)
@@ -139,6 +140,27 @@ def organize_metadata(metadata):
         logger.error(f"Error organizing metadata: {str(e)}")
         raise
 
+def remove_metadata(file_path):
+    try:
+        # Resim dosyasını aç
+        with Image.open(file_path) as img:
+            # Yeni bir resim oluştur (metadata olmadan)
+            data = list(img.getdata())
+            clean_image = Image.new(img.mode, img.size)
+            clean_image.putdata(data)
+            
+            # Geçici dosya oluştur
+            temp_filename = f"clean_{os.path.basename(file_path)}"
+            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+            
+            # Temiz resmi kaydet
+            clean_image.save(temp_path)
+            
+            return temp_path
+    except Exception as e:
+        print(f"Error removing metadata: {str(e)}")
+        return None
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
@@ -206,6 +228,39 @@ def upload_file():
     except Exception as e:
         logger.error(f"Unexpected error in upload_file: {str(e)}", exc_info=True)
         return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+@app.route('/remove-metadata', methods=['POST'])
+def remove_metadata_endpoint():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if file and allowed_file(file.filename):
+        try:
+            # Dosyayı geçici olarak kaydet
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+            # Metadata'yı temizle
+            clean_filepath = remove_metadata(filepath)
+            if clean_filepath is None:
+                return jsonify({'error': 'Failed to remove metadata'}), 500
+            
+            # Temiz dosyayı gönder
+            return send_file(
+                clean_filepath,
+                as_attachment=True,
+                download_name=f"clean_{filename}"
+            )
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+            
+    return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/system-check', methods=['GET'])
 def system_check():

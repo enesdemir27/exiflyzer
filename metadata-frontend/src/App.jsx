@@ -10,6 +10,7 @@ function App() {
   const [dragActive, setDragActive] = useState(false)
   const [systemStatus, setSystemStatus] = useState(null)
   const [activeModal, setActiveModal] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null)
 
   useEffect(() => {
     // Check system status when component mounts
@@ -124,9 +125,46 @@ function App() {
 
       console.log("Setting metadata:", data.metadata);
       setMetadata(data.metadata);
+      setSelectedFile(file);
     } catch (err) {
       console.error("Error processing file:", err);
       setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveMetadata = async () => {
+    if (!selectedFile) return;
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5000/remove-metadata', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove metadata');
+      }
+
+      // Dosyayı indir
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `clean_${selectedFile.name}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+
+    } catch (error) {
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -415,6 +453,23 @@ function App() {
                     />
                   ))}
                 </div>
+                {selectedFile && (
+                  <div className="metadata-size-info">
+                    <p>
+                      Metadata takes {formatFileSize(JSON.stringify(metadata).length)} ({((JSON.stringify(metadata).length / selectedFile.size) * 100).toFixed(1)}%) of this image and may include sensitive info.
+                    </p>
+                    <button 
+                      className="remove-metadata-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveMetadata();
+                      }}
+                      disabled={loading}
+                    >
+                      {loading ? 'Processing...' : 'Remove metadata and download'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

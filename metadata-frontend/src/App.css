@@ -345,6 +345,49 @@ main {
   background: #94a3b8;
 }
 
+.metadata-size-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.metadata-size-info p {
+  color: #64748b;
+  margin-bottom: 1rem;
+}
+
+.remove-metadata-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.remove-metadata-btn:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.remove-metadata-btn:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.remove-metadata-btn:disabled:hover {
+  background-color: #94a3b8;
+}
+
 /* Info Sections Common Styles */
 .info-sections {
   max-width: 1200px;
