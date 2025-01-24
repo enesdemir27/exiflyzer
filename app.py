@@ -10,6 +10,7 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 from PIL import Image
 import datetime
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -56,6 +57,29 @@ def cleanup_temp_file(filepath):
             logger.info(f"Successfully cleaned up temp file: {filepath}")
     except Exception as e:
         logger.error(f"Error cleaning up temp file {filepath}: {str(e)}")
+
+def cleanup_temp_files():
+    """Temp klasöründeki eski dosyaları temizle"""
+    try:
+        # 15 dakikadan eski dosyaları temizle
+        max_age = 15 * 60  # 15 dakika
+        current_time = time.time()
+        
+        # Temp ve upload klasörlerini kontrol et
+        for folder in [TEMP_FOLDER, UPLOAD_FOLDER]:
+            if os.path.exists(folder):
+                for filename in os.listdir(folder):
+                    filepath = os.path.join(folder, filename)
+                    # Dosya yaşını kontrol et
+                    file_age = current_time - os.path.getctime(filepath)
+                    if file_age > max_age:
+                        try:
+                            os.remove(filepath)
+                            logger.info(f"Removed old temp file: {filepath}")
+                        except Exception as e:
+                            logger.error(f"Error removing temp file {filepath}: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in cleanup_temp_files: {str(e)}")
 
 def get_metadata(file_path):
     """Get metadata from file using ExifTool."""
@@ -255,20 +279,24 @@ def upload_file():
 
         # Extract metadata
         try:
+            # Temp dosyaları temizle
+            cleanup_temp_files()
+            
             metadata = get_metadata(filepath)
+            
+            # Cleanup temp file
+            cleanup_temp_file(filepath)
             
             return jsonify({
                 'success': True,
                 'metadata': metadata
             })
-
+                
         except Exception as e:
+            # Cleanup temp file in case of error
+            cleanup_temp_file(filepath)
             logger.error(f"Metadata extraction failed: {str(e)}")
             return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
-
-        finally:
-            # Always clean up the temp file
-            cleanup_temp_file(filepath)
 
     except Exception as e:
         logger.error(f"Unexpected error in upload_file: {str(e)}", exc_info=True)
@@ -285,6 +313,9 @@ def remove_metadata_endpoint():
     
     if file and allowed_file(file.filename):
         try:
+            # Temp dosyaları temizle
+            cleanup_temp_files()
+            
             # Dosyayı geçici olarak kaydet
             filename = secure_filename(file.filename)
             filepath = os.path.join(TEMP_FOLDER, filename)
@@ -296,11 +327,19 @@ def remove_metadata_endpoint():
                 return jsonify({'error': 'Failed to remove metadata'}), 500
             
             # Temiz dosyayı gönder
-            return send_file(
+            response = send_file(
                 clean_filepath,
                 as_attachment=True,
                 download_name=f"clean_{filename}"
             )
+            
+            # Cleanup işlemini response döndükten sonra yap
+            @response.call_on_close
+            def cleanup():
+                cleanup_temp_file(filepath)
+                cleanup_temp_file(clean_filepath)
+            
+            return response
             
         except Exception as e:
             logger.error(f"Error in remove_metadata_endpoint: {str(e)}")
@@ -358,4 +397,8 @@ if __name__ == '__main__':
     logger.info("Starting Flask application...")
     logger.info(f"ExifTool path: {EXIFTOOL_PATH}")
     logger.info(f"Upload folder: {UPLOAD_FOLDER}")
+    
+    # Başlangıçta temp dosyaları temizle
+    cleanup_temp_files()
+    
     app.run(debug=True)

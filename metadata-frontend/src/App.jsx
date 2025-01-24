@@ -2,6 +2,32 @@ import { useState, useEffect } from 'react'
 import { FiUploadCloud, FiInfo, FiImage, FiCamera, FiMapPin, FiClock, FiAlertTriangle, FiFile, FiFolder, FiFileText, FiCalendar, FiLayers, FiShield, FiMail, FiGithub, FiTwitter, FiX } from 'react-icons/fi'
 import './App.css'
 
+// Google AdSense component
+const AdBanner = ({ slot, format = 'auto' }) => {
+  useEffect(() => {
+    try {
+      const adsbygoogle = window.adsbygoogle || []
+      adsbygoogle.push({})
+    } catch (e) {
+      console.error('AdSense error:', e)
+    }
+  }, [])
+
+  return (
+    <div className="ad-container" key={`ad-${slot}`}>
+      <ins
+        className="adsbygoogle"
+        style={{ display: 'block', textAlign: 'center' }}
+        data-ad-client="ca-pub-XXXXXXXXXXXX"
+        data-ad-slot={slot}
+        data-ad-format={format}
+        data-full-width-responsive="true"
+        data-adtest="on"
+      />
+    </div>
+  )
+}
+
 function App() {
   const [metadata, setMetadata] = useState(null)
   const [error, setError] = useState('')
@@ -356,6 +382,12 @@ function App() {
     </div>
   );
 
+  const adSlots = {
+    top: 'XXXXXXXXXX1',
+    middle: 'XXXXXXXXXX2',
+    bottom: 'XXXXXXXXXX3'
+  }
+
   return (
     <div className="app-container">
       <header>
@@ -375,6 +407,7 @@ function App() {
       <main>
         <div className="content-container">
           <div className="main-content">
+            <AdBanner slot={adSlots.top} />
             <div className="upload-container">
               <div 
                 className={`upload-section ${dragActive ? 'drag-active' : ''}`}
@@ -440,43 +473,46 @@ function App() {
             </div>
 
             {metadata && (
-              <div className="metadata-container">
-                <div className="metadata-size-info">
-                  <p>
-                    Metadata takes {formatFileSize(JSON.stringify(metadata).length)} ({((JSON.stringify(metadata).length / selectedFile.size) * 100).toFixed(1)}%) of this image and may include sensitive info.
-                  </p>
-                  <button 
-                    className="remove-metadata-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveMetadata();
-                    }}
-                    disabled={loading}
-                  >
-                    {loading ? 'Processing...' : 'Remove metadata and download'}
-                  </button>
-                </div>
+              <>
+                <AdBanner slot={adSlots.middle} />
+                <div className="metadata-container">
+                  <div className="metadata-size-info">
+                    <p>
+                      Metadata takes {formatFileSize(JSON.stringify(metadata).length)} ({((JSON.stringify(metadata).length / selectedFile.size) * 100).toFixed(1)}%) of this image and may include sensitive info.
+                    </p>
+                    <button 
+                      className="remove-metadata-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveMetadata();
+                      }}
+                      disabled={loading}
+                    >
+                      {loading ? 'Processing...' : 'Remove metadata and download'}
+                    </button>
+                  </div>
 
-                <div className="metadata-grid">
-                  {Object.entries(metadata).map(([category, items]) => (
-                    <div key={category} className="metadata-category">
-                      <div className="category-header">
-                        {getCategoryIcon(category)}
-                        <h3>{category.split('_').map(word => 
-                          word.charAt(0).toUpperCase() + word.slice(1)
-                        ).join(' ')}</h3>
+                  <div className="metadata-grid">
+                    {Object.entries(metadata).map(([category, items]) => (
+                      <div key={category} className="metadata-category">
+                        <div className="category-header">
+                          {getCategoryIcon(category)}
+                          <h3>{category.split('_').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                          ).join(' ')}</h3>
+                        </div>
+                        {Object.entries(items).map(([key, value]) => (
+                          <MetadataItem
+                            key={key}
+                            label={key.replace(/([A-Z])/g, ' $1').trim()} 
+                            value={value} 
+                          />
+                        ))}
                       </div>
-                      {Object.entries(items).map(([key, value]) => (
-                        <MetadataItem
-                          key={key}
-                          label={key.replace(/([A-Z])/g, ' $1').trim()} 
-                          value={value} 
-                        />
-                      ))}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -630,6 +666,8 @@ function App() {
       >
         <Contact />
       </Modal>
+
+      <AdBanner slot={adSlots.bottom} format="fluid" />
     </div>
   );
 }

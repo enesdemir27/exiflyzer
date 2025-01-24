@@ -813,3 +813,21 @@ footer {
     padding: 1.5rem;
   }
 }
+
+/* Ad Container Styles */
+.ad-container {
+  width: 100%;
+  min-height: 100px;
+  margin: 1rem 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f8fafc;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ad-container ins.adsbygoogle {
+  width: 100%;
+  min-height: 100px;
+}
