@@ -13,6 +13,18 @@ from PIL import Image
 app = Flask(__name__)
 CORS(app)
 
+# Upload klasörü yapılandırması
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+
+# Upload klasörünü oluştur
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Temp klasörünü oluştur
+TEMP_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp')
+os.makedirs(TEMP_FOLDER, exist_ok=True)
+
 # Configure detailed logging
 logging.basicConfig(
     level=logging.DEBUG,
@@ -21,13 +33,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-UPLOAD_FOLDER = Path('temp_uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'tiff', 'bmp', 'webp', 'heic', 'pdf'}
 EXIFTOOL_PATH = r'c:\exiftool\exiftool.exe'
-
-# Create upload folder if it doesn't exist
-UPLOAD_FOLDER.mkdir(exist_ok=True)
-logger.info(f"Upload folder path: {UPLOAD_FOLDER.absolute()}")
 
 def allowed_file(filename):
     """Check if the file extension is allowed."""
@@ -151,14 +158,14 @@ def remove_metadata(file_path):
             
             # Geçici dosya oluştur
             temp_filename = f"clean_{os.path.basename(file_path)}"
-            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+            temp_path = os.path.join(TEMP_FOLDER, temp_filename)
             
             # Temiz resmi kaydet
             clean_image.save(temp_path)
             
             return temp_path
     except Exception as e:
-        print(f"Error removing metadata: {str(e)}")
+        logger.error(f"Error removing metadata: {str(e)}")
         return None
 
 @app.route('/upload', methods=['POST'])
@@ -189,7 +196,7 @@ def upload_file():
         # Create safe filename
         original_filename = secure_filename(file.filename)
         unique_filename = f"{uuid.uuid4()}_{original_filename}"
-        filepath = UPLOAD_FOLDER / unique_filename
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         
         logger.info(f"Processing file: {original_filename}")
         logger.info(f"Temp path: {filepath}")
@@ -242,7 +249,7 @@ def remove_metadata_endpoint():
         try:
             # Dosyayı geçici olarak kaydet
             filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            filepath = os.path.join(TEMP_FOLDER, filename)
             file.save(filepath)
             
             # Metadata'yı temizle
@@ -258,6 +265,7 @@ def remove_metadata_endpoint():
             )
             
         except Exception as e:
+            logger.error(f"Error in remove_metadata_endpoint: {str(e)}")
             return jsonify({'error': str(e)}), 500
             
     return jsonify({'error': 'Invalid file type'}), 400
@@ -311,5 +319,5 @@ def get_supported_types():
 if __name__ == '__main__':
     logger.info("Starting Flask application...")
     logger.info(f"ExifTool path: {EXIFTOOL_PATH}")
-    logger.info(f"Upload folder: {UPLOAD_FOLDER.absolute()}")
+    logger.info(f"Upload folder: {UPLOAD_FOLDER}")
     app.run(debug=True)

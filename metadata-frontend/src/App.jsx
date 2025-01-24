@@ -441,35 +441,41 @@ function App() {
 
             {metadata && (
               <div className="metadata-container">
+                <div className="metadata-size-info">
+                  <p>
+                    Metadata takes {formatFileSize(JSON.stringify(metadata).length)} ({((JSON.stringify(metadata).length / selectedFile.size) * 100).toFixed(1)}%) of this image and may include sensitive info.
+                  </p>
+                  <button 
+                    className="remove-metadata-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveMetadata();
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? 'Processing...' : 'Remove metadata and download'}
+                  </button>
+                </div>
+
                 <div className="metadata-grid">
-                  {Object.entries(metadata).map(([category, data]) => (
-                    <MetadataSection 
-                      key={category}
-                      title={category.split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                      ).join(' ')} 
-                      icon={getCategoryIcon(category)} 
-                      data={data}
-                    />
+                  {Object.entries(metadata).map(([category, items]) => (
+                    <div key={category} className="metadata-category">
+                      <div className="category-header">
+                        {getCategoryIcon(category)}
+                        <h3>{category.split('_').map(word => 
+                          word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' ')}</h3>
+                      </div>
+                      {Object.entries(items).map(([key, value]) => (
+                        <MetadataItem
+                          key={key}
+                          label={key.replace(/([A-Z])/g, ' $1').trim()} 
+                          value={value} 
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
-                {selectedFile && (
-                  <div className="metadata-size-info">
-                    <p>
-                      Metadata takes {formatFileSize(JSON.stringify(metadata).length)} ({((JSON.stringify(metadata).length / selectedFile.size) * 100).toFixed(1)}%) of this image and may include sensitive info.
-                    </p>
-                    <button 
-                      className="remove-metadata-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveMetadata();
-                      }}
-                      disabled={loading}
-                    >
-                      {loading ? 'Processing...' : 'Remove metadata and download'}
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
